@@ -224,7 +224,7 @@ class ProductService {
         sc.name AS subcategory_name, sc.name_ar AS subcategory_name_ar,
         b.name AS brand_name,
         ps.name AS size_name, ps.unit AS size_unit, ps.value AS size_value,
-        of.name AS olfactory_family_name,
+        ofam.name AS olfactory_family_name,
         (SELECT GROUP_CONCAT(of2.name ORDER BY pof2.is_primary DESC, pof2.sort_order SEPARATOR ', ')
          FROM product_olfactory_families pof2
          JOIN olfactory_families of2 ON of2.id = pof2.olfactory_family_id
@@ -239,7 +239,7 @@ class ProductService {
        LEFT JOIN categories sc ON sc.id = p.subcategory_id
        LEFT JOIN brands b ON b.id = p.brand_id
        LEFT JOIN product_sizes ps ON ps.id = p.size_id
-       LEFT JOIN olfactory_families of ON of.id = p.olfactory_family_id
+       LEFT JOIN olfactory_families ofam ON ofam.id = p.olfactory_family_id
        LEFT JOIN product_country_pricing pcp ON pcp.product_id = p.id AND pcp.country_id = ?
        LEFT JOIN countries co ON co.id = ?
        ${whereClause}
@@ -294,13 +294,13 @@ class ProductService {
         sc.name AS subcategory_name, sc.name_ar AS subcategory_name_ar,
         b.name AS brand_name,
         ps.name AS size_name, ps.unit AS size_unit, ps.value AS size_value,
-        of.name AS olfactory_family_name, of.name_ar AS olfactory_family_name_ar
+        ofam.name AS olfactory_family_name, ofam.name_ar AS olfactory_family_name_ar
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        LEFT JOIN categories sc ON sc.id = p.subcategory_id
        LEFT JOIN brands b ON b.id = p.brand_id
        LEFT JOIN product_sizes ps ON ps.id = p.size_id
-       LEFT JOIN olfactory_families of ON of.id = p.olfactory_family_id
+       LEFT JOIN olfactory_families ofam ON ofam.id = p.olfactory_family_id
        WHERE p.id = ?`,
       [id]
     );
@@ -407,9 +407,9 @@ class ProductService {
 
     // Olfactory Families (Multi-accords)
     const rawOlfactoryFamilies = await db.query(
-      `SELECT pof.olfactory_family_id AS id, of.name, of.name_ar, of.slug, pof.is_primary, pof.sort_order
+      `SELECT pof.olfactory_family_id AS id, ofam.name, ofam.name_ar, ofam.slug, pof.is_primary, pof.sort_order
        FROM product_olfactory_families pof
-       JOIN olfactory_families of ON of.id = pof.olfactory_family_id
+       JOIN olfactory_families ofam ON ofam.id = pof.olfactory_family_id
        WHERE pof.product_id = ?
        ORDER BY pof.is_primary DESC, pof.sort_order ASC`,
       [id]

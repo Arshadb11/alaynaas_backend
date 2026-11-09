@@ -26,24 +26,24 @@ class FragranceService {
     const params = [];
 
     if (activeOnly) {
-      where += ' AND of.is_active = TRUE';
+      where += ' AND ofam.is_active = TRUE';
     }
 
     if (search) {
-      where += ' AND (of.name LIKE ? OR of.name_ar LIKE ? OR of.description LIKE ?)';
+      where += ' AND (ofam.name LIKE ? OR ofam.name_ar LIKE ? OR ofam.description LIKE ?)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     const families = await db.query(
       `SELECT 
-        of.id, of.name, of.name_ar, of.slug, of.description,
-        of.icon_url, of.is_active, of.created_at,
+        ofam.id, ofam.name, ofam.name_ar, ofam.slug, ofam.description,
+        ofam.icon_url, ofam.is_active, ofam.created_at,
         COUNT(DISTINCT pof.product_id) AS product_count
-       FROM olfactory_families of
-       LEFT JOIN product_olfactory_families pof ON pof.olfactory_family_id = of.id
+       FROM olfactory_families ofam
+       LEFT JOIN product_olfactory_families pof ON pof.olfactory_family_id = ofam.id
        ${where}
-       GROUP BY of.id
-       ORDER BY of.name ASC`,
+       GROUP BY ofam.id
+       ORDER BY ofam.name ASC`,
       params
     );
 
@@ -53,12 +53,12 @@ class FragranceService {
   async getOlfactoryFamilyById(id) {
     const [family] = await db.query(
       `SELECT 
-        of.*,
+        ofam.*,
         COUNT(DISTINCT pof.product_id) AS product_count
-       FROM olfactory_families of
-       LEFT JOIN product_olfactory_families pof ON pof.olfactory_family_id = of.id
-       WHERE of.id = ?
-       GROUP BY of.id`,
+       FROM olfactory_families ofam
+       LEFT JOIN product_olfactory_families pof ON pof.olfactory_family_id = ofam.id
+       WHERE ofam.id = ?
+       GROUP BY ofam.id`,
       [id]
     );
 
