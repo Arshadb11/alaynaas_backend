@@ -14,6 +14,8 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
+  // Hosted MySQL (e.g. TiDB Cloud) requires an encrypted connection: set DB_SSL=true
+  ...(process.env.DB_SSL === 'true' && { ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true } }),
 });
 
 // Test connection on startup
