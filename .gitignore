@@ -1,0 +1,27 @@
+# Dependencies & builds
+node_modules/
+dist/
+dist-ssr/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data (not source code)
+server/uploads/
+server/logs/
+logs/
+*.log
+server/output.txt
+
+# Full database dumps (contain real data)
+perfume_admin*.sql
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
+desktop.ini
