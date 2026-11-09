@@ -6,9 +6,10 @@ const loggerService = require('./logger.service');
 const UPLOADS_ROOT = path.resolve(__dirname, '../../uploads');
 
 // Ensure root directory exists
-if (!fsSync.existsSync(UPLOADS_ROOT)) {
-  fsSync.mkdirSync(UPLOADS_ROOT, { recursive: true });
-}
+// (Read-only filesystem on Vercel: don't crash at startup if the folder can't be created)
+try {
+  if (!fsSync.existsSync(UPLOADS_ROOT)) fsSync.mkdirSync(UPLOADS_ROOT, { recursive: true });
+} catch { /* uploads unavailable on this host */ }
 
 /**
  * Categorize extensions for UI icons and filtering

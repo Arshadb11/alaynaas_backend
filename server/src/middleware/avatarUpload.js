@@ -4,9 +4,10 @@ const fs = require('fs');
 
 const AVATAR_DIR = path.join(__dirname, '../../uploads/avatars');
 
-if (!fs.existsSync(AVATAR_DIR)) {
-  fs.mkdirSync(AVATAR_DIR, { recursive: true });
-}
+// Read-only filesystem on Vercel: don't crash at startup if the folder can't be created
+try {
+  if (!fs.existsSync(AVATAR_DIR)) fs.mkdirSync(AVATAR_DIR, { recursive: true });
+} catch { /* uploads unavailable on this host */ }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
