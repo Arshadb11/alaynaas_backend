@@ -28,25 +28,34 @@ function createTransport(filename, level) {
   });
 }
 
-const logger = winston.createLogger({
-  level: 'http',
-  format: structuredFormat,
-  transports: [
-    createTransport('app.log', 'info'),
-    createTransport('error.log', 'error'),
-    createTransport('security.log', 'warn'),
-    createTransport('access.log', 'http'),
-  ],
-  exceptionHandlers: [
-    createTransport('exceptions.log', 'error'),
-  ],
-  rejectionHandlers: [
-    createTransport('rejections.log', 'error'),
-  ],
-});
+// Vercel's filesystem is read-only: log JSON to stdout there (visible in Vercel → Logs)
+const onVercel = !!process.env.VERCEL;
+
+const logger = onVercel
+  ? winston.createLogger({
+    level: 'http',
+    format: structuredFormat,
+    transports: [new winston.transports.Console()],
+  })
+  : winston.createLogger({
+    level: 'http',
+    format: structuredFormat,
+    transports: [
+      createTransport('app.log', 'info'),
+      createTransport('error.log', 'error'),
+      createTransport('security.log', 'warn'),
+      createTransport('access.log', 'http'),
+    ],
+    exceptionHandlers: [
+      createTransport('exceptions.log', 'error'),
+    ],
+    rejectionHandlers: [
+      createTransport('rejections.log', 'error'),
+    ],
+  });
 
 // Console output in development
-if (process.env.NODE_ENV !== 'production') {
+if (!onVercel && process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
       winston.format.colorize(),

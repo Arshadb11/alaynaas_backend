@@ -9,7 +9,8 @@ const pool = mysql.createPool({
   password: config.db.password,
   database: config.db.database,
   waitForConnections: true,
-  connectionLimit: 20,
+  // Serverless runs many small instances, each with its own pool: keep it small there
+  connectionLimit: parseInt(process.env.DB_POOL_LIMIT, 10) || (process.env.VERCEL ? 3 : 20),
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,

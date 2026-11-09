@@ -2,14 +2,21 @@ const Redis = require('ioredis');
 const config = require('./env');
 const winstonLogger = require('./winston');
 
-const redis = new Redis({
-  host: config.redis.host,
-  port: config.redis.port,
-  password: config.redis.password || undefined,
+const redisOptions = {
   maxRetriesPerRequest: 3,
   retryStrategy: (times) => Math.min(times * 200, 5000),
   lazyConnect: true,
-});
+};
+
+// Hosted Redis (e.g. Upstash) gives a single URL like rediss://default:pass@host:6379
+const redis = config.redis.url
+  ? new Redis(config.redis.url, redisOptions)
+  : new Redis({
+    host: config.redis.host,
+    port: config.redis.port,
+    password: config.redis.password || undefined,
+    ...redisOptions,
+  });
 
 redis.on('error', (err) => {
   winstonLogger.error('Redis connection error', { error: err.message });

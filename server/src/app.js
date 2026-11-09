@@ -23,6 +23,19 @@ const settingsRoutes = require('./routes/settings.routes');
 
 const app = express();
 
+// Behind Vercel's proxy: trust X-Forwarded-For so req.ip is the real client IP
+app.set('trust proxy', 1);
+
+// ── Scheduled Jobs (Vercel Cron) ────────────────────────
+// Vercel calls this daily (see vercel.json) with "Authorization: Bearer <CRON_SECRET>".
+app.get('/api/cron/trash-purge', async (req, res) => {
+  if (!process.env.CRON_SECRET || req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  await require('./jobs/trashPurge').runTrashPurge();
+  res.json({ ok: true });
+});
+
 // ── Core Middleware ─────────────────────────────────────
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
