@@ -32,9 +32,19 @@ pool.getConnection()
  * Execute a parameterized query
  */
 async function query(sql, params = []) {
-  const [rows] = await pool.execute(sql, params);
+  // Prepared statements reject "LIMIT ? OFFSET ?" on TiDB / MySQL 8.0.22+ ("Incorrect arguments to LIMIT").
+  // For those, let mysql2 escape the values client-side instead (still injection-safe).
+  const limitSlots = (sql.match(LIMIT_PLACEHOLDER) || []).length;
+  if (!limitSlots) {
+    const [rows] = await pool.execute(sql, params);
+    return rows;
+  }
+  // LIMIT/OFFSET placeholders are the trailing params: force them to integers so they aren't quoted
+  const fixed = params.map((p, i) => (i >= params.length - limitSlots ? parseInt(p, 10) || 0 : p));
+  const [rows] = await pool.query(sql, fixed);
   return rows;
 }
+const LIMIT_PLACEHOLDER = /\b(?:LIMIT|OFFSET)\s+\?/gi;
 
 /**
  * Insert a record and return insertId
