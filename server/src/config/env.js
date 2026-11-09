@@ -5,11 +5,12 @@ module.exports = {
   nodeEnv: process.env.NODE_ENV || 'development',
 
   db: {
-    host: process.env.DB_HOST || 'localhost',
+    // .trim(): values pasted into a hosting dashboard often carry stray spaces
+    host: (process.env.DB_HOST || 'localhost').trim(),
     port: parseInt(process.env.DB_PORT, 10) || 3306,
-    user: process.env.DB_USER || 'root',
+    user: (process.env.DB_USER || 'root').trim(),
     password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'perfume_admin',
+    database: (process.env.DB_NAME || 'perfume_admin').trim(),
   },
 
   redis: {

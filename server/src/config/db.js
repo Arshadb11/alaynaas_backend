@@ -2,6 +2,9 @@ const mysql = require('mysql2/promise');
 const config = require('./env');
 const winstonLogger = require('./winston');
 
+const useSsl = /^(true|1|yes)$/i.test(String(process.env.DB_SSL || '').trim().replace(/^["']|["']$/g, ''))
+  || /\.tidbcloud\.com$/i.test(String(config.db.host).trim());
+
 const pool = mysql.createPool({
   host: config.db.host,
   port: config.db.port,
@@ -14,8 +17,8 @@ const pool = mysql.createPool({
   queueLimit: 0,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0,
-  // Hosted MySQL (e.g. TiDB Cloud) requires an encrypted connection: set DB_SSL=true
-  ...(process.env.DB_SSL === 'true' && { ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true } }),
+  // Hosted MySQL (e.g. TiDB Cloud) requires an encrypted connection: DB_SSL=true (always on for TiDB Cloud hosts)
+  ...(useSsl && { ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true } }),
 });
 
 // Test connection on startup
