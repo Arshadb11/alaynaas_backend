@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../services/api';
+import { assetUrl } from '../config/env';
 import { toast } from '../components/ui/Toast';
 import PermissionGate from '../components/ui/PermissionGate';
 import { getFileTypeInfo, formatFileSize } from '../utils/fileTypes';
@@ -22,7 +23,6 @@ import {
   HiOutlineCheck,
 } from 'react-icons/hi';
 
-const API_SERVER_URL = 'http://localhost:3000';
 
 export default function FileManager() {
   const [currentDir, setCurrentDir] = useState('');
@@ -234,7 +234,7 @@ export default function FileManager() {
 
   // Copy full URL
   const handleCopyUrl = (fileUrl) => {
-    const fullUrl = `${API_SERVER_URL}${fileUrl}`;
+    const fullUrl = assetUrl(fileUrl);
     navigator.clipboard.writeText(fullUrl);
     toast.success('File URL copied to clipboard');
   };

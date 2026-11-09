@@ -12,7 +12,7 @@ import { HiOutlineSave, HiOutlinePlus, HiOutlineTrash, HiOutlineExternalLink } f
  * Content is lightweight markdown; tokens like {shipping_fee} are filled with live settings on the storefront.
  */
 
-const STOREFRONT_ORIGIN = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001';
+import { STOREFRONT_ORIGIN } from '../../config/env';
 
 const TOKENS = [
   ['{shipping_fee}', 'Delivery charge'],

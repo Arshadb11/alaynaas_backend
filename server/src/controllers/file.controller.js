@@ -42,20 +42,7 @@ const uploadFiles = asyncHandler(async (req, res) => {
   }
 
   const targetDir = req.body.dir || req.query.dir || '';
-  const { relativeDir } = filesystemService.getSafePath(targetDir);
-
-  const uploadedList = files.map((file) => {
-    const fileRel = relativeDir ? `${relativeDir}/${file.filename}` : file.filename;
-    const url = `/uploads/${fileRel.split('/').map(encodeURIComponent).join('/')}`;
-    return {
-      name: file.filename,
-      originalName: file.originalname,
-      path: fileRel,
-      url,
-      size: file.size,
-      mimeType: file.mimetype,
-    };
-  });
+  const { relativeDir, saved: uploadedList } = await filesystemService.saveUploads(targetDir, files);
 
   // Audit log
   await loggerService.logAction({
@@ -63,7 +50,7 @@ const uploadFiles = asyncHandler(async (req, res) => {
     userEmail: req.user.email,
     action: 'FILES_UPLOAD',
     category: 'FILES',
-    details: { count: files.length, targetDir: relativeDir, fileNames: files.map((f) => f.filename) },
+    details: { count: files.length, targetDir: relativeDir, fileNames: uploadedList.map((f) => f.name) },
     req,
   });
 

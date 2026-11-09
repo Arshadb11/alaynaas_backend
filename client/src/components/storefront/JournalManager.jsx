@@ -10,8 +10,7 @@ import { HiOutlineSave, HiOutlinePlus, HiOutlineTrash, HiOutlineExternalLink, Hi
  * "## Heading", "- bullet", "**bold**", "[label](/url)", blank line = new paragraph.
  */
 
-const STOREFRONT_ORIGIN = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001';
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:3000';
+import { API_ORIGIN, STOREFRONT_ORIGIN } from '../../config/env';
 
 const BLANK = {
   id: null, slug: '', titleEn: '', titleAr: '', excerptEn: '', excerptAr: '', categoryEn: '', categoryAr: '',

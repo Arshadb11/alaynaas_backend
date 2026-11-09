@@ -23,8 +23,7 @@ import {
  */
 
 const MAX_SLIDES = 8;
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:3000'; // serves /uploads/*
-const STOREFRONT_ORIGIN = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001'; // serves /images/*
+import { API_ORIGIN, STOREFRONT_ORIGIN } from '../../config/env';
 
 const blankSlide = () => ({
   img: '', pos: '50% 50%', active: true, start_at: '', end_at: '',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
+import { assetUrl } from '../config/env';
 import { toast } from '../components/ui/Toast';
 import { usePermission } from '../hooks/usePermission';
 import { useBranding } from '../context/BrandingContext';
@@ -195,7 +196,7 @@ export default function Settings() {
   const renderAssetUploadCard = (title, key, description, sizeKey = null) => {
     const currentVal = settings[key] || '';
     const isFullUrl = currentVal.startsWith('http');
-    const displayUrl = isFullUrl ? currentVal : `http://localhost:3000${currentVal.startsWith('/') ? '' : '/'}${currentVal}`;
+    const displayUrl = isFullUrl ? currentVal : assetUrl(currentVal);
 
     return (
       <div className="p-4 rounded-xl border border-surface-200 dark:border-surface-800 bg-surface-50/50 dark:bg-surface-850 flex flex-col justify-between">

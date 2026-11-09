@@ -24,8 +24,7 @@ import {
  */
 
 const MAX_ITEMS = 8;
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:3000';
-const STOREFRONT_ORIGIN = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001';
+import { API_ORIGIN, STOREFRONT_ORIGIN } from '../../config/env';
 
 const blankItem = () => ({
   category_slug: '', active: true, img: '', href: '',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../services/api';
+import { assetUrl } from '../../config/env';
 import { toast } from '../ui/Toast';
 import { getFileTypeInfo } from '../../utils/fileTypes';
 import {
@@ -14,7 +15,6 @@ import {
   HiOutlineRefresh,
 } from 'react-icons/hi';
 
-const API_SERVER_URL = 'http://localhost:3000';
 
 export default function FilePickerModal({
   isOpen,
@@ -119,7 +119,7 @@ export default function FilePickerModal({
     if (selectedList.length === 0) return;
     const fullUrls = selectedList.map((f) => ({
       ...f,
-      fullUrl: `${API_SERVER_URL}${f.url}`,
+      fullUrl: f.fullUrl || assetUrl(f.url),
     }));
     onSelect(multiple ? fullUrls : fullUrls[0]);
     onClose();
@@ -335,7 +335,7 @@ export default function FilePickerModal({
                       const isSelected = selectedList.some((f) => f.path === file.path);
                       const typeInfo = getFileTypeInfo(file);
                       const isImage = typeInfo.type === 'image';
-                      const fullUrl = `${API_SERVER_URL}${file.url}`;
+                      const fullUrl = file.fullUrl || assetUrl(file.url);
 
                       return (
                         <div

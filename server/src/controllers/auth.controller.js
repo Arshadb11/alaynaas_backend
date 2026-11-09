@@ -1,4 +1,6 @@
+const path = require('path');
 const authService = require('../services/auth.service');
+const storage = require('../services/storage.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const login = asyncHandler(async (req, res) => {
@@ -105,7 +107,11 @@ const uploadAvatar = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'No image file uploaded' });
   }
 
-  const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const cleanExt = ['.jpg', '.jpeg', '.png', '.webp', '.svg'].includes(ext) ? ext : '.jpg';
+  const rel = `avatars/avatar_${req.user?.id || 'user'}_${Date.now()}${cleanExt}`;
+  await storage.save(rel, req.file);
+  const avatarUrl = storage.relativeUrl(rel);
   const updatedUser = await authService.updateProfile(
     req.user.id,
     { avatarUrl },

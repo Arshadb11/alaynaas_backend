@@ -1433,7 +1433,7 @@ export default function Fragrance() {
         isOpen={showFilePicker}
         onClose={() => setShowFilePicker(false)}
         onSelect={(selectedFile) => {
-          const fileUrl = selectedFile.fullUrl || `http://localhost:3000${selectedFile.url}`;
+          const fileUrl = selectedFile.fullUrl || assetUrl(selectedFile.url);
           if (filePickerTarget === 'note_image') {
             setNoteForm((prev) => ({ ...prev, image_url: fileUrl }));
           } else if (filePickerTarget === 'family_icon') {

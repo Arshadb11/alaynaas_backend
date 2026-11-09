@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
+import { assetUrl } from '../../config/env';
 import { toast } from '../ui/Toast';
 import { usePermission } from '../../hooks/usePermission';
 import SizeCombobox from './SizeCombobox';
@@ -44,9 +45,8 @@ const SPEC_PRESETS = [
   { key: 'wear', label: 'Wear it when (en|ar; separated by ;)', defaultVal: 'Evenings out|الأمسيات; Special occasions|المناسبات الخاصة; Cooler weather|الأجواء الباردة' },
 ];
 
-// Absolute origin of the API server (so uploaded files get a full URL, not a hardcoded localhost)
-const apiOrigin = () => String(api.defaults?.baseURL || 'http://localhost:3000/api').replace(/\/api\/?$/, '');
-const toAbsUrl = (u) => (/^https?:\/\//i.test(u) ? u : `${apiOrigin()}${u}`);
+// Absolute URL for an uploaded file (API origin comes from config/env)
+const toAbsUrl = (u) => assetUrl(u);
 
 /**
  * Reconstruct hierarchical category ID path [rootId, subId1, subId2, ...] from metadata
@@ -429,7 +429,7 @@ export default function ProductEditor({ productId, cloneFromId = null, isOpen, o
       const { data } = await api.post('/files/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const url = data.files?.[0]?.url;
       if (url) {
-        upsertSpec(key, toAbsUrl(url));
+        upsertSpec(key, data.files[0].fullUrl || toAbsUrl(url));
         toast.success(key === 'video_url' ? 'Video uploaded. Save the product to publish it.' : 'Poster uploaded. Save the product to publish it.');
       }
     } catch (err) {
@@ -2129,7 +2129,7 @@ export default function ProductEditor({ productId, cloneFromId = null, isOpen, o
                               });
                               if (data.files?.length > 0) {
                                 const newImgs = data.files.map((f, i) => ({
-                                  url: `http://localhost:3000${f.url}`,
+                                  url: f.fullUrl || assetUrl(f.url),
                                   alt_text: (f.name || form.name || 'Perfume').replace(/\.[^/.]+$/, ''),
                                   is_primary: imagesList.length === 0 && i === 0,
                                   sort_order: imagesList.length + i,
@@ -2217,7 +2217,7 @@ export default function ProductEditor({ productId, cloneFromId = null, isOpen, o
                             });
                             if (data.files?.length > 0) {
                               const newImgs = data.files.map((f, i) => ({
-                                url: `http://localhost:3000${f.url}`,
+                                url: f.fullUrl || assetUrl(f.url),
                                 alt_text: (f.name || form.name || 'Perfume').replace(/\.[^/.]+$/, ''),
                                 is_primary: imagesList.length === 0 && i === 0,
                                 sort_order: imagesList.length + i,
@@ -2436,7 +2436,7 @@ export default function ProductEditor({ productId, cloneFromId = null, isOpen, o
         onSelect={(selected) => {
           const items = Array.isArray(selected) ? selected : [selected];
           const newImgs = items.map((f, i) => ({
-            url: f.fullUrl || (f.url.startsWith('http') ? f.url : `http://localhost:3000${f.url}`),
+            url: f.fullUrl || assetUrl(f.url),
             alt_text: (f.name || form.name || 'Perfume').replace(/\.[^/.]+$/, ''),
             is_primary: imagesList.length === 0 && i === 0,
             sort_order: imagesList.length + i,
@@ -2457,7 +2457,7 @@ export default function ProductEditor({ productId, cloneFromId = null, isOpen, o
         onSelect={(selected) => {
           const file = Array.isArray(selected) ? selected[0] : selected;
           if (file && bundlePickerIndex !== null) {
-            const selectedUrl = file.fullUrl || (file.url?.startsWith('http') ? file.url : `http://localhost:3000${file.url}`);
+            const selectedUrl = file.fullUrl || assetUrl(file.url);
             handleUpdateBundleItem(bundlePickerIndex, 'image_url', selectedUrl);
             toast.success(`Selected image: ${file.name || 'image'}`);
           }

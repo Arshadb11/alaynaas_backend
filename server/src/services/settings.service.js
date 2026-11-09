@@ -2,7 +2,7 @@ const db = require('../config/db');
 const redisClient = require('../config/redis');
 const loggerService = require('./logger.service');
 const path = require('path');
-const fs = require('fs');
+const storage = require('./storage.service');
 
 class SettingsService {
   /**
@@ -328,25 +328,14 @@ class SettingsService {
       throw Object.assign(new Error(`Invalid branding target key: ${targetKey}`), { statusCode: 400 });
     }
 
-    // Target directory: uploads/branding/
-    const brandingDir = path.join(__dirname, '../../uploads/branding');
-    if (!fs.existsSync(brandingDir)) {
-      fs.mkdirSync(brandingDir, { recursive: true });
-    }
-
+    // Stored at uploads/branding/<key>_<timestamp><ext> (local disk or Vercel Blob)
     const ext = path.extname(file.originalname).toLowerCase();
     const cleanKey = targetKey || 'branding_asset';
     const filename = `${cleanKey}_${Date.now()}${ext}`;
-    const destinationPath = path.join(brandingDir, filename);
+    const rel = `branding/${filename}`;
+    await storage.save(rel, file);
 
-    // If file is on disk from multer or memory
-    if (file.path) {
-      fs.renameSync(file.path, destinationPath);
-    } else if (file.buffer) {
-      fs.writeFileSync(destinationPath, file.buffer);
-    }
-
-    const assetUrl = `/uploads/branding/${filename}`;
+    const assetUrl = storage.relativeUrl(rel);
 
     // If a targetKey is specified, automatically update that setting
     if (targetKey && targetKey !== 'hero_slide' && targetKey !== 'house_discipline') {

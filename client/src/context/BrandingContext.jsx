@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { API_URL, assetUrl } from '../config/env';
 
 const BrandingContext = createContext(null);
 
@@ -24,14 +25,14 @@ export function BrandingProvider({ children }) {
 
   const fetchBranding = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:3000/api/store/settings');
+      const res = await axios.get(`${API_URL}/store/settings`);
       if (res.data?.success && res.data?.data) {
         const data = res.data.data;
         setBranding(data);
 
         // Dynamically update browser tab favicon in Admin Panel
         if (data.favicon) {
-          const favUrl = data.favicon.startsWith('http') ? data.favicon : `http://localhost:3000${data.favicon}`;
+          const favUrl = assetUrl(data.favicon);
           let link = document.querySelector("link[rel*='icon']");
           if (!link) {
             link = document.createElement('link');
@@ -59,8 +60,7 @@ export function BrandingProvider({ children }) {
 
   const resolveUrl = (u, fallback) => {
     if (!u) return fallback;
-    if (u.startsWith('http://') || u.startsWith('https://')) return u;
-    return `http://localhost:3000${u.startsWith('/') ? u : `/${u}`}`;
+    return assetUrl(u);
   };
 
   const adminLogo = resolveUrl(branding.admin_logo, '/LOGO/Desktop.svg');

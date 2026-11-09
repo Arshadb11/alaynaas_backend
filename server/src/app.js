@@ -33,7 +33,9 @@ app.get('/api/cron/trash-purge', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   await require('./jobs/trashPurge').runTrashPurge();
-  res.json({ ok: true });
+  // Abandoned browser→Blob uploads (user closed the tab mid-upload) older than a day
+  const staleUploads = await require('./services/storage.service').purgeIncoming().catch(() => 0);
+  res.json({ ok: true, staleUploads });
 });
 
 // ── Core Middleware ─────────────────────────────────────
@@ -50,8 +52,19 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ── Static Files (Local Disk Uploads) ───────────────────
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// ── Uploaded Files ──────────────────────────────────────
+// Local dev: served from server/uploads. Production: files live in Vercel Blob, so
+// /uploads/<path> redirects to the public Blob URL (same path), keeping stored URLs valid.
+const storage = require('./services/storage.service');
+if (storage.useBlob) {
+  app.get('/uploads/{*splat}', (req, res) => {
+    const rel = [].concat(req.params.splat || []).join('/');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.redirect(302, storage.publicUrl(rel));
+  });
+} else {
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+}
 
 // ── Request Logger (all API hits) ───────────────────────
 app.use('/api', requestLogger('admin_panel'));
@@ -74,6 +87,7 @@ app.use('/api/contact-messages', require('./routes/contact.routes'));
 app.use('/api/reviews', require('./routes/reviews.routes'));
 app.use('/api/products', productRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/uploads', require('./routes/upload.routes'));
 app.use('/api/fragrance', fragranceRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/store', storeRoutes);

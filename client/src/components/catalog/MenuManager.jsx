@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../../services/api';
+import { assetUrl } from '../../config/env';
 import { toast } from '../ui/Toast';
 import {
   HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineX,
@@ -304,7 +305,7 @@ export default function MenuManager({ canManage }) {
                 <div>
                   <label className={labelCls}>Image (optional)</label>
                   <div className="flex items-center gap-2">
-                    {form.imageUrl && <img src={form.imageUrl.startsWith('/uploads') ? `http://localhost:3000${form.imageUrl}` : form.imageUrl} alt="" className="w-9 h-9 rounded object-cover border border-surface-200" />}
+                    {form.imageUrl && <img src={assetUrl(form.imageUrl)} alt="" className="w-9 h-9 rounded object-cover border border-surface-200" />}
                     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
                     <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="btn btn-secondary text-xs">{uploading ? 'Uploading…' : form.imageUrl ? 'Replace' : 'Upload'}</button>
                     {form.imageUrl && <button type="button" onClick={() => setForm({ ...form, imageUrl: '' })} className="text-xs text-red-500">Remove</button>}

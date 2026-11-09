@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useBranding } from '../../context/BrandingContext';
 import { usePermission } from '../../hooks/usePermission';
+import { assetUrl } from '../../config/env';
 import {
   HiOutlineViewGrid, HiOutlineUsers, HiOutlineShieldCheck,
   HiOutlineClipboardList, HiOutlineCog, HiOutlineDocumentText,
@@ -150,7 +151,7 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white text-xs font-semibold overflow-hidden border border-surface-200 dark:border-surface-700 flex-shrink-0 group-hover:ring-2 group-hover:ring-primary-500/40 transition-all">
               {user?.avatarUrl || user?.avatar_url ? (
                 <img
-                  src={(user.avatarUrl || user.avatar_url).startsWith('http') ? (user.avatarUrl || user.avatar_url) : `http://localhost:3000${(user.avatarUrl || user.avatar_url).startsWith('/') ? '' : '/'}${user.avatarUrl || user.avatar_url}`}
+                  src={assetUrl(user.avatarUrl || user.avatar_url)}
                   alt={user?.fullName || 'Avatar'}
                   className="w-full h-full object-cover"
                   onError={(e) => { e.target.style.display = 'none'; }}

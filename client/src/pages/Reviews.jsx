@@ -13,7 +13,7 @@ import {
  * Only approved reviews are shown on the storefront.
  */
 
-const STOREFRONT_ORIGIN = import.meta.env.VITE_STOREFRONT_URL || 'http://localhost:3001';
+import { STOREFRONT_ORIGIN } from '../config/env';
 const TABS = [
   { id: 'pending', label: 'Pending' },
   { id: 'approved', label: 'Approved' },

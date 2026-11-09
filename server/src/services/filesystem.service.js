@@ -1,15 +1,5 @@
-const fs = require('fs').promises;
-const fsSync = require('fs');
 const path = require('path');
-const loggerService = require('./logger.service');
-
-const UPLOADS_ROOT = path.resolve(__dirname, '../../uploads');
-
-// Ensure root directory exists
-// (Read-only filesystem on Vercel: don't crash at startup if the folder can't be created)
-try {
-  if (!fsSync.existsSync(UPLOADS_ROOT)) fsSync.mkdirSync(UPLOADS_ROOT, { recursive: true });
-} catch { /* uploads unavailable on this host */ }
+const storage = require('./storage.service');
 
 /**
  * Categorize extensions for UI icons and filtering
@@ -39,92 +29,74 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+const cleanItemName = (name) => (name || '').replace(/[\\/:*?"<>|]/g, '').trim();
+const joinRel = (dir, name) => (dir ? `${dir}/${name}` : name);
+
+function describeFile(rel, size, mtime, ctime) {
+  const name = rel.split('/').pop();
+  const ext = path.extname(name).toLowerCase().replace('.', '');
+  return {
+    name,
+    path: rel,
+    url: storage.relativeUrl(rel),
+    fullUrl: storage.publicUrl(rel),
+    isDirectory: false,
+    size,
+    sizeFormatted: formatBytes(size),
+    extension: ext,
+    category: getCategoryFromExtension(ext),
+    modifiedAt: mtime,
+    createdAt: ctime,
+  };
+}
+
 class FilesystemService {
   /**
-   * Resolve and validate safe path within UPLOADS_ROOT
-   * Strictly prevents path traversal attacks
+   * Normalize a client-supplied directory into a safe relative path (forward slashes,
+   * no leading slash, no parent navigation). Strictly prevents path traversal.
    */
   getSafePath(relativeDir = '') {
-    // Normalize and strip leading / or \
-    const cleanDir = path.normalize(relativeDir || '')
-      .replace(/^([.\\/\\])+/, '')
-      .replace(/\.\./g, ''); // strip any parent navigation
-
-    const targetPath = path.resolve(UPLOADS_ROOT, cleanDir);
-
-    if (!targetPath.startsWith(UPLOADS_ROOT)) {
-      throw new Error('Access denied: Invalid directory path outside uploads');
-    }
-
-    // Normalized relative path using forward slashes
-    let relative = path.relative(UPLOADS_ROOT, targetPath).replace(/\\/g, '/');
-    if (relative === '.') relative = '';
-
-    return {
-      targetPath,
-      relativeDir: relative,
-    };
+    const cleaned = String(relativeDir || '')
+      .replace(/\\/g, '/')
+      .split('/')
+      .map((seg) => seg.trim())
+      .filter((seg) => seg && seg !== '.' && seg !== '..' && !seg.startsWith('.'))
+      .join('/');
+    return { relativeDir: cleaned };
   }
 
   /**
    * List directory contents (folders and files) with search, filter, and sorting
    */
   async listDirectory({ dir = '', search = '', filterType = '', sortBy = 'name', sortOrder = 'asc' }) {
-    const { targetPath, relativeDir } = this.getSafePath(dir);
+    const { relativeDir } = this.getSafePath(dir);
+    const depth = relativeDir ? relativeDir.split('/').length : 0;
 
-    if (!fsSync.existsSync(targetPath)) {
-      await fs.mkdir(targetPath, { recursive: true });
+    // One recursive listing of the subtree, then split into direct children
+    const tree = await storage.listTree(relativeDir);
+
+    const childCounts = new Map(); // folder rel -> number of direct children
+    for (const item of tree) {
+      const parent = item.rel.split('/').slice(0, -1).join('/');
+      childCounts.set(parent, (childCounts.get(parent) || 0) + 1);
     }
-
-    const entries = await fs.readdir(targetPath, { withFileTypes: true });
 
     const folders = [];
     const files = [];
-
-    for (const entry of entries) {
-      const itemFullPath = path.join(targetPath, entry.name);
-      try {
-        const stats = await fs.stat(itemFullPath);
-
-        if (entry.isDirectory()) {
-          // Count direct children
-          let childCount = 0;
-          try {
-            const children = await fs.readdir(itemFullPath);
-            childCount = children.length;
-          } catch {}
-
-          const folderRel = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
-          folders.push({
-            name: entry.name,
-            path: folderRel,
-            isDirectory: true,
-            itemCount: childCount,
-            size: stats.size,
-            modifiedAt: stats.mtime,
-            createdAt: stats.birthtime,
-          });
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name).toLowerCase().replace('.', '');
-          const category = getCategoryFromExtension(ext);
-          const fileRel = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
-          const url = `/uploads/${fileRel.split('/').map(encodeURIComponent).join('/')}`;
-
-          files.push({
-            name: entry.name,
-            path: fileRel,
-            url,
-            isDirectory: false,
-            size: stats.size,
-            sizeFormatted: formatBytes(stats.size),
-            extension: ext,
-            category,
-            modifiedAt: stats.mtime,
-            createdAt: stats.birthtime,
-          });
-        }
-      } catch (err) {
-        // Skip unreadable files
+    for (const item of tree) {
+      if (item.rel.split('/').length !== depth + 1) continue; // only direct children
+      if (item.type === 'dir') {
+        folders.push({
+          name: item.rel.split('/').pop(),
+          path: item.rel,
+          isDirectory: true,
+          itemCount: childCounts.get(item.rel) || 0,
+          size: item.size,
+          modifiedAt: item.mtime,
+          createdAt: item.ctime,
+        });
+      } else {
+        files.push(describeFile(item.rel, item.size, item.mtime, item.ctime));
       }
     }
 
@@ -139,7 +111,7 @@ class FilesystemService {
     }
 
     if (filterType && filterType !== 'all') {
-      filteredFiles = files.filter((f) => f.category === filterType);
+      filteredFiles = filteredFiles.filter((f) => f.category === filterType);
     }
 
     // Sorting
@@ -176,25 +148,23 @@ class FilesystemService {
   }
 
   /**
-   * Create a new folder on the physical disk
+   * Create a new folder
    */
   async createFolder({ dir = '', name }) {
-    // Sanitize folder name
-    const sanitized = (name || '').replace(/[\\/:*?"<>|]/g, '').trim();
-    if (!sanitized) {
+    const sanitized = cleanItemName(name);
+    if (!sanitized || sanitized.startsWith('.')) {
       throw new Error('Invalid folder name. Cannot be empty or contain special characters.');
     }
 
-    const { targetPath, relativeDir } = this.getSafePath(dir);
-    const newFolderPath = path.join(targetPath, sanitized);
+    const { relativeDir } = this.getSafePath(dir);
+    const newRelPath = joinRel(relativeDir, sanitized);
 
-    if (fsSync.existsSync(newFolderPath)) {
+    if (await storage.exists(newRelPath)) {
       throw new Error(`A folder or file named "${sanitized}" already exists.`);
     }
 
-    await fs.mkdir(newFolderPath, { recursive: true });
+    await storage.createFolder(newRelPath);
 
-    const newRelPath = relativeDir ? `${relativeDir}/${sanitized}` : sanitized;
     return {
       name: sanitized,
       path: newRelPath,
@@ -205,39 +175,38 @@ class FilesystemService {
   }
 
   /**
-   * Rename a file or folder on disk
+   * Rename a file or folder
    */
   async renameItem({ dir = '', oldName, newName }) {
     const cleanOld = path.basename(oldName || '').trim();
-    const cleanNew = (newName || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    const cleanNew = cleanItemName(newName);
 
-    if (!cleanOld || !cleanNew) {
+    if (!cleanOld || !cleanNew || cleanNew.startsWith('.')) {
       throw new Error('Both old and new names are required.');
     }
 
-    const { targetPath, relativeDir } = this.getSafePath(dir);
-    const oldPath = path.join(targetPath, cleanOld);
-    const newPath = path.join(targetPath, cleanNew);
+    const { relativeDir } = this.getSafePath(dir);
+    const oldRel = joinRel(relativeDir, cleanOld);
+    const newRel = joinRel(relativeDir, cleanNew);
 
-    if (!fsSync.existsSync(oldPath)) {
+    if (!(await storage.exists(oldRel))) {
       throw new Error(`"${cleanOld}" does not exist.`);
     }
-    if (fsSync.existsSync(newPath)) {
+    if (await storage.exists(newRel)) {
       throw new Error(`An item named "${cleanNew}" already exists.`);
     }
 
-    await fs.rename(oldPath, newPath);
+    await storage.move(oldRel, newRel);
 
-    const newRelPath = relativeDir ? `${relativeDir}/${cleanNew}` : cleanNew;
     return {
       oldName: cleanOld,
       newName: cleanNew,
-      path: newRelPath,
+      path: newRel,
     };
   }
 
   /**
-   * Delete a file or directory from physical disk
+   * Delete a file or folder
    */
   async deleteItem({ dir = '', name }) {
     const cleanName = path.basename(name || '').trim();
@@ -245,50 +214,50 @@ class FilesystemService {
       throw new Error('Item name is required.');
     }
 
-    const { targetPath } = this.getSafePath(dir);
-    const itemPath = path.join(targetPath, cleanName);
+    const { relativeDir } = this.getSafePath(dir);
+    const rel = joinRel(relativeDir, cleanName);
 
-    if (!fsSync.existsSync(itemPath)) {
+    const info = await storage.stat(rel);
+    if (!info) {
       throw new Error(`"${cleanName}" does not exist.`);
     }
 
-    const stats = await fs.stat(itemPath);
-    if (stats.isDirectory()) {
-      await fs.rm(itemPath, { recursive: true, force: true });
-    } else {
-      await fs.unlink(itemPath);
-    }
+    await storage.remove(rel);
 
     return {
       name: cleanName,
-      isDirectory: stats.isDirectory(),
+      isDirectory: info.type === 'dir',
       success: true,
     };
   }
 
   /**
-   * Calculate collision-free filename if destination file already exists
-   * e.g. "dulook.jpg" -> "dulook (1).jpg"
+   * Store uploaded files in a directory with collision-free names ("a.jpg" -> "a (1).jpg").
+   * Returns the descriptors sent back to the client.
    */
-  getUniqueDestinationPath(targetDir, originalName) {
-    const ext = path.extname(originalName);
-    const baseName = path.basename(originalName, ext);
-
-    let candidateName = originalName;
-    let candidatePath = path.join(targetDir, candidateName);
-    let counter = 1;
-
-    while (fsSync.existsSync(candidatePath)) {
-      candidateName = `${baseName} (${counter})${ext}`;
-      candidatePath = path.join(targetDir, candidateName);
-      counter++;
+  async saveUploads(dir, files) {
+    const { relativeDir } = this.getSafePath(dir);
+    const saved = [];
+    for (const file of files) {
+      const originalClean = cleanItemName(file.originalname) || 'upload';
+      const finalName = await storage.uniqueName(relativeDir, originalClean);
+      const rel = joinRel(relativeDir, finalName);
+      await storage.save(rel, file);
+      saved.push({
+        name: finalName,
+        originalName: file.originalname,
+        path: rel,
+        url: storage.relativeUrl(rel),
+        fullUrl: storage.publicUrl(rel),
+        size: file.size,
+        mimeType: file.mimetype,
+      });
     }
-
-    return { finalPath: candidatePath, finalName: candidateName };
+    return { relativeDir, saved };
   }
 
   /**
-   * Scan disk and return storage statistics
+   * Storage statistics
    */
   async getStorageStats() {
     let totalSize = 0;
@@ -296,28 +265,15 @@ class FilesystemService {
     let totalFolders = 0;
     const categoryCounts = { image: 0, document: 0, video: 0, audio: 0, archive: 0, other: 0 };
 
-    async function walk(currentPath) {
-      const entries = await fs.readdir(currentPath, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(currentPath, entry.name);
-        try {
-          const stats = await fs.stat(full);
-          if (entry.isDirectory()) {
-            totalFolders++;
-            await walk(full);
-          } else if (entry.isFile()) {
-            totalFiles++;
-            totalSize += stats.size;
-            const ext = path.extname(entry.name).toLowerCase().replace('.', '');
-            const cat = getCategoryFromExtension(ext);
-            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-          }
-        } catch {}
+    for (const item of await storage.listTree('')) {
+      if (item.type === 'dir') {
+        totalFolders++;
+      } else {
+        totalFiles++;
+        totalSize += item.size;
+        const cat = getCategoryFromExtension(path.extname(item.rel));
+        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
       }
-    }
-
-    if (fsSync.existsSync(UPLOADS_ROOT)) {
-      await walk(UPLOADS_ROOT);
     }
 
     return {

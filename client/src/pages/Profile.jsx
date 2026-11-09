@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCountry } from '../context/CountryContext';
 import api from '../services/api';
+import { assetUrl } from '../config/env';
 import { toast } from '../components/ui/Toast';
 import FilePickerModal from '../components/files/FilePickerModal';
 import {
@@ -50,8 +51,7 @@ export default function Profile() {
 
   const getAvatarSrc = (url) => {
     if (!url || typeof url !== 'string') return '';
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return `http://localhost:3000${url.startsWith('/') ? '' : '/'}${url}`;
+    return assetUrl(url);
   };
 
   useEffect(() => {

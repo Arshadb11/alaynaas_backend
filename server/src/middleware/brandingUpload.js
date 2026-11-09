@@ -1,26 +1,5 @@
-const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-
-const BRANDING_DIR = path.join(__dirname, '../../uploads/branding');
-
-// Read-only filesystem on Vercel: don't crash at startup if the folder can't be created
-try {
-  if (!fs.existsSync(BRANDING_DIR)) fs.mkdirSync(BRANDING_DIR, { recursive: true });
-} catch { /* uploads unavailable on this host */ }
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, BRANDING_DIR);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const cleanExt = ['.jpg', '.jpeg', '.png', '.webp', '.svg', '.ico'].includes(ext) ? ext : '.png';
-    const key = (req.body?.key || req.query?.key || 'asset').replace(/[^a-zA-Z0-9_-]/g, '');
-    const filename = `${key}_${Date.now()}${cleanExt}`;
-    cb(null, filename);
-  },
-});
+const { makeUpload } = require('./uploadHandler');
 
 const fileFilter = (req, file, cb) => {
   const allowedMimes = [
@@ -40,12 +19,9 @@ const fileFilter = (req, file, cb) => {
   cb(new Error('Invalid brand asset format. Only SVG, PNG, WebP, JPEG, and ICO are permitted.'));
 };
 
-const brandingUpload = multer({
-  storage,
+// Stored by settingsService.uploadBrandingAsset as uploads/branding/<key>_<timestamp>.<ext>
+module.exports = makeUpload({
   fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max
-  },
+  maxBytes: 10 * 1024 * 1024, // 10MB max
+  maxFiles: 1,
 });
-
-module.exports = brandingUpload;
