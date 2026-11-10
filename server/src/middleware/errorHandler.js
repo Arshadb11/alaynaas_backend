@@ -24,6 +24,8 @@ function errorHandler(err, req, res, _next) {
   const response = {
     error: err.message || 'Internal server error',
   };
+  // A short, safe code the storefront can translate (set deliberately by services, never a DB code)
+  if (err.publicCode) response.code = err.publicCode;
 
   if (process.env.NODE_ENV !== 'production') {
     response.stack = err.stack;

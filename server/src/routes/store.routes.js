@@ -194,6 +194,65 @@ router.post('/atelier/:code/reserve', reserveLimiter, validate(atelierCodeSchema
     res.status(201).json({ success: true, data: await require('../services/atelier.service').reserve(req.params.code, req.body) });
   } catch (e) { next(e); }
 });
+// ── Gift Majlis: free gifts (FOC). Prizes are drawn on the server; one gift per UAE mobile. ──
+// Generous per IP: UAE mobile carriers put many people behind one IP. One gift per number is the real limit.
+const giftPlayLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Too many tries. Please come back later.' },
+});
+const giftClaimLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Too many requests. Please try again later.' },
+});
+const gifts = () => require('../services/gifts.service');
+const giftCodeSchema = Joi.object({ code: Joi.string().trim().pattern(/^GF-[A-Z0-9]{5}$/i).required() });
+const giftLang = Joi.string().valid('en', 'ar').optional();
+const giftPlaySchema = Joi.object({
+  mode: Joi.string().valid('dune', 'emirates', 'key').required(),
+  choice: Joi.string().max(30).allow('').optional(),
+  lang: giftLang,
+});
+const giftSendSchema = Joi.object({
+  who: Joi.string().max(20).required(),
+  to_name: Joi.string().trim().min(2).max(60).required(),
+  from_name: Joi.string().trim().min(2).max(60).required(),
+  message: Joi.string().trim().max(400).allow('').optional(),
+  sender_phone: Joi.string().trim().pattern(/^[+0-9 ()-]{7,20}$/).required(),
+  lang: giftLang,
+  website: Joi.string().allow('').optional(), // honeypot
+});
+const giftClaimSchema = Joi.object({
+  token: Joi.string().hex().length(32).required(),
+  name: Joi.string().trim().min(2).max(100).required(),
+  phone: Joi.string().trim().pattern(/^[+0-9 ()-]{7,20}$/).required(),
+  emirate: Joi.string().max(30).required(),
+  address: Joi.string().trim().min(5).max(400).required(),
+  website: Joi.string().allow('').optional(), // honeypot
+});
+router.get('/gifts/status', async (req, res, next) => {
+  try { res.set('Cache-Control', 'no-store'); res.json({ success: true, data: await gifts().status() }); } catch (e) { next(e); }
+});
+router.post('/gifts/play', giftPlayLimiter, validate(giftPlaySchema, 'body'), async (req, res, next) => {
+  try { res.status(201).json({ success: true, data: await gifts().play(req.body, req.ip) }); } catch (e) { next(e); }
+});
+router.post('/gifts/send', giftClaimLimiter, validate(giftSendSchema, 'body'), async (req, res, next) => {
+  try {
+    if (req.body.website) return res.status(201).json({ success: true, data: { code: 'GF-AAAAA' } });
+    res.status(201).json({ success: true, data: await gifts().send(req.body, req.ip) });
+  } catch (e) { next(e); }
+});
+router.get('/gifts/send/:code', validate(giftCodeSchema, 'params'), async (req, res, next) => {
+  try { res.set('Cache-Control', 'no-store'); res.json({ success: true, data: await gifts().getSend(req.params.code) }); } catch (e) { next(e); }
+});
+router.post('/gifts/send/:code/open', giftPlayLimiter, validate(giftCodeSchema, 'params'), async (req, res, next) => {
+  try { res.status(201).json({ success: true, data: await gifts().openSend(req.params.code, req.body?.lang, req.ip) }); } catch (e) { next(e); }
+});
+router.post('/gifts/claim', giftClaimLimiter, validate(giftClaimSchema, 'body'), async (req, res, next) => {
+  try {
+    if (req.body.website) return res.status(201).json({ success: true, data: { claimed: true } });
+    res.status(201).json({ success: true, data: await gifts().claim(req.body) });
+  } catch (e) { next(e); }
+});
 router.get('/reviews/featured', async (req, res, next) => {
   try { res.json({ success: true, data: await require('../services/reviews.service').listFeatured(req.query.limit) }); } catch (e) { next(e); }
 });
