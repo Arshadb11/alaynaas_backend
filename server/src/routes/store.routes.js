@@ -160,6 +160,40 @@ router.post('/contact', contactLimiter, validate(contactSchema, 'body'), async (
     res.status(201).json({ success: true, data });
   } catch (e) { next(e); }
 });
+// Atelier: compose a personal perfume (rules engine), view it by share code, reserve it (becomes a lead)
+const atelierLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Too many creations. Please try again later.' },
+});
+const reserveLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 8, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, error: 'Too many requests. Please try again later.' },
+});
+const atelierCodeSchema = Joi.object({ code: Joi.string().trim().pattern(/^AL-[A-Z0-9]{5}$/i).required() });
+const atelierComposeSchema = Joi.object({
+  answers: Joi.object().required(),
+  label_name: Joi.string().trim().max(40).allow('').optional(),
+  lang: Joi.string().valid('en', 'ar').optional(),
+});
+const atelierReserveSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(100).required(),
+  phone: Joi.string().trim().pattern(/^[+0-9 ()-]{7,20}$/).required(),
+  email: Joi.string().trim().lowercase().email().max(150).allow('').optional(),
+  size: Joi.string().valid('30', '50', '100').allow('').optional(),
+  website: Joi.string().allow('').optional(), // honeypot
+});
+router.post('/atelier', atelierLimiter, validate(atelierComposeSchema, 'body'), async (req, res, next) => {
+  try { res.status(201).json({ success: true, data: await require('../services/atelier.service').create(req.body, req.ip) }); } catch (e) { next(e); }
+});
+router.get('/atelier/:code', validate(atelierCodeSchema, 'params'), async (req, res, next) => {
+  try { res.json({ success: true, data: await require('../services/atelier.service').get(req.params.code) }); } catch (e) { next(e); }
+});
+router.post('/atelier/:code/reserve', reserveLimiter, validate(atelierCodeSchema, 'params'), validate(atelierReserveSchema, 'body'), async (req, res, next) => {
+  try {
+    if (req.body.website) return res.status(201).json({ success: true, data: { reserved: true } });
+    res.status(201).json({ success: true, data: await require('../services/atelier.service').reserve(req.params.code, req.body) });
+  } catch (e) { next(e); }
+});
 router.get('/reviews/featured', async (req, res, next) => {
   try { res.json({ success: true, data: await require('../services/reviews.service').listFeatured(req.query.limit) }); } catch (e) { next(e); }
 });

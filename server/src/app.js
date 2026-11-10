@@ -84,6 +84,7 @@ app.use('/api/catalog', catalogRoutes);
 app.use('/api/pages', require('./routes/pages.routes'));
 app.use('/api/journal', require('./routes/journal.routes'));
 app.use('/api/contact-messages', require('./routes/contact.routes'));
+app.use('/api/atelier', require('./routes/atelier.routes'));
 app.use('/api/reviews', require('./routes/reviews.routes'));
 app.use('/api/products', productRoutes);
 app.use('/api/files', fileRoutes);
