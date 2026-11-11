@@ -9,20 +9,28 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const redisClient = require('../config/redis');
 const loggerService = require('./logger.service');
-const { compose, OPTIONS } = require('./atelier.engine');
+const { compose, OPTIONS, ritual } = require('./atelier.engine');
 
 const err = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
 const STATUSES = ['created', 'reserved', 'contacted', 'ordered', 'gift_given', 'archived'];
 const SIZES = ['30', '50', '100'];
+const GIFT_EN = 'Order your whole ritual and we add complimentary 2ml samples to your parcel.';
+const GIFT_AR = 'اطلب طقسك كاملًا ونضيف إلى طلبك عينات مجانية بحجم 2 مل.';
 
 const SETTINGS = [
   ['atelier_enabled', 'true', 'boolean', 'Show the Atelier (compose your perfume) page'],
   ['atelier_price_30', '', 'string', 'Atelier price for 30ml (AED, empty hides the size)'],
   ['atelier_price_50', '', 'string', 'Atelier price for 50ml (AED, empty hides the size)'],
   ['atelier_price_100', '', 'string', 'Atelier price for 100ml (AED, empty hides the size)'],
-  ['atelier_gift_en', 'Reserve your formula and receive a complimentary discovery set of four 2ml fragrances.', 'string', 'Atelier gift offer (English)'],
-  ['atelier_gift_ar', 'احجز تركيبتك واحصل مجانًا على مجموعة استكشاف من أربعة عطور بحجم 2 مل.', 'string', 'Atelier gift offer (Arabic)'],
+  ['atelier_gift_en', GIFT_EN, 'string', 'Atelier gift with a full ritual order (English)'],
+  ['atelier_gift_ar', GIFT_AR, 'string', 'Atelier gift with a full ritual order (Arabic)'],
+  ['atelier_ritual_discount', '10', 'string', 'Discount % when the whole Crown Ritual is ordered together (0 = none)'],
 ];
+// The first offer text (reserve a custom formula) is replaced by the ritual offer unless the team already edited it
+const OLD_GIFT = {
+  atelier_gift_en: ['Reserve your formula and receive a complimentary discovery set of four 2ml fragrances.', GIFT_EN],
+  atelier_gift_ar: ['احجز تركيبتك واحصل مجانًا على مجموعة استكشاف من أربعة عطور بحجم 2 مل.', GIFT_AR],
+};
 
 let ready = null;
 function ensureSchema() {
@@ -56,10 +64,51 @@ function ensureSchema() {
           ['atelier', key, value, type, description]
         );
       }
+      for (const [key, [from, to]] of Object.entries(OLD_GIFT)) {
+        await db.query('UPDATE system_settings SET `value` = ? WHERE `key` = ? AND `value` = ?', [to, key, from]);
+      }
       if (redisClient) { try { await redisClient.del('settings:public'); } catch { /* ignore */ } }
     })().catch((e) => { ready = null; throw e; });
   }
   return ready;
+}
+
+/* ── The live catalog for the ritual (in-stock products with their notes), cached for 5 minutes ── */
+let catalogCache = { at: 0, items: null };
+async function catalog() {
+  if (catalogCache.items && Date.now() - catalogCache.at < 5 * 60 * 1000) return catalogCache.items;
+  const store = require('./store.service');
+  let all = [];
+  for (let page = 1; page <= 6; page++) {
+    const r = await store.listProducts({ limit: 50, page, country_code: 'AE' });
+    all = all.concat(r.products || []);
+    if ((r.products || []).length < 50) break;
+  }
+  const items = all.filter((p) => p.in_stock && p.price > 0 && !p.is_bundle).map((p) => ({
+    id: p.id, slug: p.slug, name: p.name, name_ar: p.name_ar || p.name, category_slug: p.category_slug,
+    category: { en: p.category_name, ar: p.category_name_ar || p.category_name },
+    price: p.price, size: p.size_label, image: p.primary_image, variants: p.variants || [],
+    families: String(p.family_slugs || '').split(',').filter(Boolean), notes: [],
+  }));
+  if (items.length) {
+    const ids = items.map((p) => p.id);
+    const notes = await db.query(
+      `SELECT pfn.product_id, fn.name, pfn.note_level AS level FROM product_fragrance_notes pfn
+       JOIN fragrance_notes fn ON fn.id = pfn.note_id WHERE pfn.product_id IN (${ids.map(() => '?').join(',')})`, ids);
+    const byId = Object.fromEntries(items.map((p) => [p.id, p]));
+    notes.forEach((n) => byId[n.product_id]?.notes.push({ name: n.name, level: n.level }));
+  }
+  catalogCache = { at: Date.now(), items };
+  return items;
+}
+const productView = (p) => p && ({
+  id: p.id, slug: p.slug, name: p.name, name_ar: p.name_ar, category: p.category,
+  price: p.price, size: p.size, image: p.image, variants: p.variants,
+});
+async function ritualDiscount() {
+  const [row] = await db.query("SELECT `value` FROM system_settings WHERE `key` = 'atelier_ritual_discount'");
+  const n = parseFloat(row?.value);
+  return Number.isFinite(n) ? Math.min(50, Math.max(0, n)) : 0;
 }
 
 const newCode = () => {
@@ -120,7 +169,28 @@ class AtelierService {
     await ensureSchema();
     const [row] = await db.query('SELECT * FROM atelier_creations WHERE code = ? AND status <> ?', [String(code).toUpperCase(), 'archived']);
     if (!row) throw err('Creation not found', 404);
-    return publicView(row);
+    const view = publicView(row);
+    const r = ritual(parse(row.answers), await catalog(), view.formula.name);
+    const discount = r.steps.length >= 2 ? await ritualDiscount() : 0;
+    return {
+      ...view,
+      story: r.story,
+      ritual: r.steps.map((st) => ({ ...st, product: productView(st.product) })),
+      matches: r.matches.map((m) => ({ ...m, product: productView(m.product) })),
+      discovery: productView(r.discovery),
+      discount,
+    };
+  }
+
+  /** For checkout: the products of this creation's ritual and its discount (null when it has no ritual). */
+  async ritualForOrder(code) {
+    if (!/^AL-[A-Z0-9]{5}$/i.test(String(code || ''))) return null;
+    await ensureSchema();
+    const [row] = await db.query('SELECT code, answers, formula FROM atelier_creations WHERE code = ? AND status <> ?', [String(code).toUpperCase(), 'archived']);
+    if (!row) return null;
+    const r = ritual(parse(row.answers), await catalog(), parse(row.formula).name);
+    if (r.steps.length < 2) return null;
+    return { code: row.code, ids: r.steps.map((st) => st.product.id), discount: await ritualDiscount() };
   }
 
   async reserve(code, { name, phone, email, size }) {

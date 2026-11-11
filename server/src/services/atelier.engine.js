@@ -216,6 +216,20 @@ const OPTIONS = {
   occasion: Object.keys(W.occasion), loves: Object.keys(W.loves), avoid: Object.keys(W.avoid),
 };
 
+/** Answers → scent tag weights (shared by the formula and the product matching). */
+function profileOf(a) {
+  const tw = {};
+  const add = (map, factor = 1) => Object.entries(map || {}).forEach(([t, w]) => { tw[t] = (tw[t] || 0) + w * factor; });
+  const moods = (a.mood || []).filter((m) => W.mood[m]).slice(0, 2);
+  add(W.who[a.who]);
+  moods.forEach((m, i) => add(W.mood[m], i === 0 ? 1 : 0.6));
+  add(W.place[a.place]);
+  add(W.occasion[a.occasion]);
+  (a.loves || []).slice(0, 3).forEach((l) => add(W.loves[l]));
+  (a.avoid || []).slice(0, 3).forEach((v) => add(W.avoid[v]));
+  return tw;
+}
+
 /**
  * @param {object} a  answers: { who, mood: [1-2], place, occasion, loves: [0-3], avoid: [0-3], intensity: 1-5 }
  * @param {number} seed  random seed (stored with the creation so it can be re-built)
@@ -228,14 +242,7 @@ function compose(a, seed) {
   if ((a.avoid || []).includes('strong')) intensity = Math.min(intensity, 3);
 
   // 1. Tag weights from the answers
-  const tw = {};
-  const add = (map, factor = 1) => Object.entries(map || {}).forEach(([t, w]) => { tw[t] = (tw[t] || 0) + w * factor; });
-  add(W.who[a.who]);
-  moods.forEach((m, i) => add(W.mood[m], i === 0 ? 1 : 0.6));
-  add(W.place[a.place]);
-  add(W.occasion[a.occasion]);
-  (a.loves || []).slice(0, 3).forEach((l) => add(W.loves[l]));
-  (a.avoid || []).slice(0, 3).forEach((v) => add(W.avoid[v]));
+  const tw = profileOf(a);
 
   // 2. Score every note (+ a seeded touch of variety)
   const scored = PALETTE.map((n) => {
@@ -314,4 +321,141 @@ function compose(a, seed) {
   };
 }
 
-module.exports = { compose, OPTIONS };
+/* ═══════════════ The Crown Ritual: matching the answers to real products ═══════════════ */
+
+/* Product note names and family slugs → the same scent tags the answers use */
+const NOTE_TAGS = [
+  [/oud|agar/, { oud: 3, woody: 1, royal: 1 }],
+  [/rose/, { rose: 3, floral: 2 }],
+  [/jasmin|tuberose|ylang|orange blossom|neroli|gardenia|frangipani|hyacinth/, { white: 2, floral: 3 }],
+  [/iris|orris|violet|heliotrope|powder/, { powdery: 3, floral: 1 }],
+  [/peony|lily|floral|flower|immortelle|magnolia|lotus/, { floral: 3 }],
+  [/saffron/, { spicy: 2, royal: 3 }],
+  [/amber|labdanum|ambrox|resin/, { amber: 3 }],
+  [/vanill|tonka|benzoin|caramel|praline|honey/, { vanilla: 2, sweet: 3 }],
+  [/musk/, { musk: 3 }],
+  [/sandal|cedar|vetiver|patchouli|guaiac|cashmere|wood/, { woody: 3 }],
+  [/leather|suede/, { leather: 3 }],
+  [/incense|frankincense|olibanum|myrrh|bakhoor/, { incense: 3, smoky: 1 }],
+  [/smok|tobacco|birch/, { smoky: 2 }],
+  [/bergamot|lemon|orange(?! blossom)|mandarin|grapefruit|lime|citrus|yuzu/, { citrus: 3, fresh: 1 }],
+  [/pepper|cardamom|cinnamon|clove|nutmeg|ginger|spic/, { spicy: 3 }],
+  [/mint|lavender|basil|sage|rosemary|tea|herb/, { herbal: 3, fresh: 1 }],
+  [/sea|marine|aqua|salt|ozon/, { aquatic: 3, fresh: 2 }],
+  [/apple|pear|berry|plum|peach|fig|fruit|pineapple|cherry|currant|apricot/, { fruity: 3 }],
+  [/moss|green|galbanum|leaf|grass/, { green: 3 }],
+  [/aldehyde/, { fresh: 1, powdery: 1 }],
+];
+const FAMILY_TAGS = [
+  [/oriental/, { amber: 2, spicy: 1, oud: 1, royal: 1 }],
+  [/amber/, { amber: 3 }], [/vanilla|gourmand/, { vanilla: 3, sweet: 2 }], [/citrus/, { citrus: 3, fresh: 1 }],
+  [/fresh/, { fresh: 3 }], [/floral/, { floral: 3 }], [/rose/, { rose: 3 }], [/chypre/, { green: 1, woody: 2, fruity: 1 }],
+  [/leather/, { leather: 3 }], [/smok|birch/, { smoky: 3 }], [/fougere|aromatic/, { herbal: 2, fresh: 1, woody: 1 }],
+  [/spic/, { spicy: 3 }], [/wood/, { woody: 3 }], [/oud/, { oud: 3 }], [/aqua|marine/, { aquatic: 3 }],
+  [/musk/, { musk: 3 }], [/powder/, { powdery: 3 }], [/fruit/, { fruity: 3 }], [/green/, { green: 3 }],
+];
+const TAG_LABEL = {
+  oud: ['oud', 'العود'], rose: ['rose', 'الورد'], amber: ['amber', 'العنبر'], vanilla: ['vanilla', 'الفانيليا'],
+  musk: ['musk', 'المسك'], woody: ['precious woods', 'الأخشاب الثمينة'], spicy: ['warm spices', 'التوابل الدافئة'],
+  citrus: ['bright citrus', 'الحمضيات المشرقة'], fresh: ['freshness', 'الانتعاش'], floral: ['flowers', 'الزهور'],
+  white: ['white flowers', 'الزهور البيضاء'], incense: ['incense', 'البخور'], smoky: ['a touch of smoke', 'لمسة الدخان'],
+  leather: ['soft leather', 'الجلد الناعم'], sweet: ['sweetness', 'الحلاوة'], fruity: ['ripe fruit', 'الفواكه الناضجة'],
+  powdery: ['powdery softness', 'النعومة البودرية'], green: ['green notes', 'النفحات الخضراء'], herbal: ['herbs', 'الأعشاب'],
+  aquatic: ['sea air', 'نسيم البحر'], royal: ['saffron and regal notes', 'الزعفران والنفحات الملكية'],
+  mineral: ['mineral notes', 'النفحات المعدنية'], seductive: ['warmth', 'الدفء'],
+};
+
+/* Category slug → ritual role */
+const ROLE = (slug = '') => {
+  const s = String(slug).toLowerCase();
+  if (/discovery|sample/.test(s)) return 'discovery';
+  if (/bakhoor|incense|oud-chips|dukhoon/.test(s)) return 'finish';
+  if (/oil|attar|ma-?attar|mukhallat/.test(s)) return 'base';
+  if (/exclusive|niche|private/.test(s)) return 'exclusive';
+  if (/perfume|parfum|eau|fragrance/.test(s)) return 'signature';
+  return null;
+};
+
+function productTags(p) {
+  const v = {};
+  const add = (map, f) => Object.entries(map).forEach(([t, w]) => { v[t] = (v[t] || 0) + w * f; });
+  for (const n of p.notes || []) {
+    const name = String(n.name || '').toLowerCase();
+    const f = n.level === 'top' ? 0.8 : 1;
+    NOTE_TAGS.forEach(([rx, map]) => { if (rx.test(name)) add(map, f); });
+  }
+  (p.families || []).forEach((slug, i) => FAMILY_TAGS.forEach(([rx, map]) => { if (rx.test(slug)) add(map, i === 0 ? 2.5 : 1.5); }));
+  return v;
+}
+
+/** How well a product fits the answers, and the two tags that explain why. */
+function fit(tw, p) {
+  const pt = productTags(p);
+  const len = Math.sqrt(Object.values(pt).reduce((s, x) => s + x * x, 0)) || 1;
+  const parts = Object.entries(pt).map(([t, x]) => [t, (tw[t] || 0) * x]);
+  const score = parts.reduce((s, [, x]) => s + x, 0) / len;
+  const why = parts.filter(([t, x]) => x > 0 && TAG_LABEL[t]).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([t]) => TAG_LABEL[t]);
+  return { score, why };
+}
+const whyText = (why) => {
+  if (why.length === 2) return { en: `Chosen for its ${why[0][0]} and ${why[1][0]}.`, ar: `اخترناه لما فيه من ${why[0][1]} و${why[1][1]}.` };
+  if (why.length === 1) return { en: `Chosen for its ${why[0][0]}.`, ar: `اخترناه لما فيه من ${why[0][1]}.` };
+  return { en: 'Chosen to complete your ritual.', ar: 'اخترناه ليكمل طقسك.' };
+};
+
+const STEPS = {
+  base: {
+    title: { en: 'The base', ar: 'القاعدة' },
+    how: { en: 'Warm a drop between your fingers and press it on your wrists, neck and behind the ears.', ar: 'دفّئ قطرة بين أصابعك وضعها على المعصمين والرقبة وخلف الأذنين.' },
+  },
+  signature: {
+    title: { en: 'The signature', ar: 'التوقيع' },
+    how: { en: 'Spray two or three times over the oil from a hand’s length away. The oil anchors it, so it lasts longer.', ar: 'رشّه مرتين أو ثلاثًا فوق الزيت من مسافة شبر، فالزيت يثبّته ليدوم أطول.' },
+  },
+  finish: {
+    title: { en: 'The finish', ar: 'اللمسة الأخيرة' },
+    how: { en: 'Light a piece and let the smoke pass through your clothes, your hair and your majlis.', ar: 'أشعل قطعة ودع دخانها يعطّر ثيابك وشعرك ومجلسك.' },
+  },
+};
+
+/**
+ * Build the Crown Ritual from the live catalog.
+ * @param a        cleaned answers
+ * @param products [{ id, category_slug, families: [slug], notes: [{ name, level }], ... }] (in stock only)
+ * @param name     the creation name ({ en, ar }) used in the story
+ */
+function ritual(a, products, name) {
+  const tw = profileOf(a);
+  const scored = products.map((p) => ({ p, role: ROLE(p.category_slug), ...fit(tw, p) })).filter((x) => x.role);
+  const list = scored.filter((x) => x.role !== 'discovery');
+  const hi = list.length ? Math.max(...list.map((x) => x.score)) : 1;
+  const lo = list.length ? Math.min(...list.map((x) => x.score)) : 0;
+  const pct = (s) => Math.round(68 + 29 * ((s - lo) / (hi - lo || 1)));
+  const best = (roles, not = []) => list.filter((x) => roles.includes(x.role) && !not.includes(x.p.id)).sort((x, y) => y.score - x.score);
+
+  const steps = [];
+  const pickStep = (role, roles) => {
+    const top = best(roles)[0];
+    if (top) steps.push({ role, title: STEPS[role].title, how: STEPS[role].how, product: top.p, match: pct(top.score), why: whyText(top.why) });
+  };
+  pickStep('base', ['base']);
+  pickStep('signature', best(['signature']).length ? ['signature'] : ['exclusive']);
+  pickStep('finish', ['finish']);
+
+  const used = steps.map((s) => s.product.id);
+  const matches = best(['signature', 'exclusive'], used).slice(0, 3)
+    .map((x) => ({ product: x.p, match: pct(x.score), why: whyText(x.why) }));
+  const discovery = scored.find((x) => x.role === 'discovery')?.p || null;
+
+  const mood = (a.mood || []).find((m) => W.mood[m]) || 'majestic';
+  const place = W.place[a.place] ? a.place : 'desert';
+  const who = WHO_TEXT[a.who] || WHO_TEXT.self;
+  const occ = OCCASION_LINE[a.occasion] || OCCASION_LINE.special;
+  const story = {
+    en: `${name.en} is the scent signature we drew for ${who[0]}, ${PLACE_LINE[place][0]}. We layered it from our own creations, whose notes ${MOOD_LINE[mood][0]}, ${occ[0]}.`,
+    ar: `«${name.ar}» هو التوقيع العطري الذي رسمناه ${who[1]}، ${PLACE_LINE[place][1]}. نسجناه من إبداعاتنا، ونوتاتها ${MOOD_LINE[mood][1]}، ${occ[1]}.`,
+  };
+  return { story, steps, matches, discovery };
+}
+
+module.exports = { compose, OPTIONS, ritual, profileOf, ROLE };

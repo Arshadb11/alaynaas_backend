@@ -78,6 +78,7 @@ const createOrderBodySchema = Joi.object({
     })
   ).min(1).required(),
   totals: Joi.object().optional(), // Recalculated server-side from DB
+  atelier_code: Joi.string().trim().pattern(/^AL-[A-Z0-9]{5}$/i).allow('', null).optional(), // Crown Ritual discount (re-checked server-side)
 });
 
 const checkoutLimiter = rateLimit({

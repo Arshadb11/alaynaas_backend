@@ -8,13 +8,14 @@ import { HiOutlineSave, HiOutlineTrash, HiOutlineSparkles, HiOutlineExternalLink
 
 /**
  * ATELIER MANAGER (Storefront sub-module)
- * Settings for the "Compose your own perfume" page (/atelier) and the leads it produces.
- * Lead flow: Reserved → Contacted → Ordered → Gift given (the free discovery set is handed manually).
+ * Settings for the Atelier page (/atelier): customers answer a few questions and receive their
+ * Crown Ritual, a layering of real products (oil + perfume + bakhoor) with three more matches.
+ * Ordering the whole ritual takes the discount below; the order note tells the team to add the gift.
  */
 
-const KEYS = ['atelier_enabled', 'atelier_price_30', 'atelier_price_50', 'atelier_price_100', 'atelier_gift_en', 'atelier_gift_ar'];
+const KEYS = ['atelier_enabled', 'atelier_ritual_discount', 'atelier_gift_en', 'atelier_gift_ar'];
 const STATUS = {
-  created: ['Not reserved', 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-300'],
+  created: ['Created', 'bg-surface-100 text-surface-600 dark:bg-surface-800 dark:text-surface-300'],
   reserved: ['Reserved', 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'],
   contacted: ['Contacted', 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300'],
   ordered: ['Ordered', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'],
@@ -53,9 +54,8 @@ function Settings({ canUpdate }) {
 
   const set = (k) => (e) => setV((s) => ({ ...s, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const save = async () => {
-    for (const k of ['atelier_price_30', 'atelier_price_50', 'atelier_price_100']) {
-      if (String(v[k]).trim() && !(Number(v[k]) > 0)) return toast.error('Prices must be numbers (or empty to hide that size)');
-    }
+    const d = String(v.atelier_ritual_discount ?? '').trim();
+    if (d && !(Number(d) >= 0 && Number(d) <= 50)) return toast.error('Ritual discount must be a number from 0 to 50');
     try {
       setSaving(true);
       await api.put('/settings', Object.fromEntries(KEYS.map((k) => [k, k === 'atelier_enabled' ? Boolean(v[k]) : String(v[k] ?? '').trim()])));
@@ -72,11 +72,13 @@ function Settings({ canUpdate }) {
     <div className={cardCls}>
       <div className="flex items-center justify-between mb-3 gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">Atelier: compose your own perfume</h3>
+          <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100">Atelier: the Crown Ritual</h3>
           <p className="text-xs text-surface-500">
-            Customers answer a few questions and get a personal formula at{' '}
-            <a className="text-primary-600 hover:underline" href={`${STOREFRONT_ORIGIN}/atelier`} target="_blank" rel="noreferrer">{STOREFRONT_ORIGIN.replace(/^https?:\/\//, '')}/atelier</a>.
-            When they reserve it, they appear below as a lead.
+            Customers answer a few questions at{' '}
+            <a className="text-primary-600 hover:underline" href={`${STOREFRONT_ORIGIN}/atelier`} target="_blank" rel="noreferrer">{STOREFRONT_ORIGIN.replace(/^https?:\/\//, '')}/atelier</a>{' '}
+            and receive their Crown Ritual: an oil, a perfume and bakhoor from your shop that suit them, plus three more matches.
+            Products are chosen from their notes and fragrance families, so keep those filled in on each product.
+            When the whole ritual is ordered together, the discount below is applied and the order note says to add the gift.
           </p>
         </div>
         {canUpdate && (
@@ -89,13 +91,13 @@ function Settings({ canUpdate }) {
         <input type="checkbox" disabled={!canUpdate} checked={Boolean(v.atelier_enabled)} onChange={set('atelier_enabled')} /> Atelier page is live on the website
       </label>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="Price 30ml (AED)" hint="Empty = size not offered"><input className={inputCls} inputMode="decimal" disabled={!canUpdate} value={v.atelier_price_30} onChange={set('atelier_price_30')} /></Field>
-        <Field label="Price 50ml (AED)"><input className={inputCls} inputMode="decimal" disabled={!canUpdate} value={v.atelier_price_50} onChange={set('atelier_price_50')} /></Field>
-        <Field label="Price 100ml (AED)"><input className={inputCls} inputMode="decimal" disabled={!canUpdate} value={v.atelier_price_100} onChange={set('atelier_price_100')} /></Field>
-        <Field label="Gift offer (English)" className="md:col-span-3" hint="Shown on the result page next to the Reserve button. Leave empty to hide.">
+        <Field label="Ritual discount (%)" hint="Off the ritual products when all are ordered together. 0 = no discount.">
+          <input className={inputCls} inputMode="decimal" disabled={!canUpdate} value={v.atelier_ritual_discount} onChange={set('atelier_ritual_discount')} />
+        </Field>
+        <Field label="Gift with the ritual (English)" className="md:col-span-3" hint="Shown under the ritual on the result page. Leave empty to hide.">
           <input className={inputCls} disabled={!canUpdate} value={v.atelier_gift_en} onChange={set('atelier_gift_en')} />
         </Field>
-        <Field label="Gift offer (Arabic)" className="md:col-span-3">
+        <Field label="Gift with the ritual (Arabic)" className="md:col-span-3">
           <input className={inputCls} dir="rtl" disabled={!canUpdate} value={v.atelier_gift_ar} onChange={set('atelier_gift_ar')} />
         </Field>
       </div>
@@ -135,10 +137,8 @@ function Lead({ item, canUpdate, onChanged }) {
       <div className="grid md:grid-cols-2 gap-3">
         <div>
           <p className="font-semibold text-surface-900 dark:text-surface-100">{f.name?.en} <span className="font-normal text-surface-500" dir="rtl">· {f.name?.ar}</span></p>
-          <p className="text-xs text-surface-500">{f.concentration?.en} {f.concentration?.pct}% · {f.longevity?.en} · {f.sillage?.en}{item.label_name ? ` · Label: "${item.label_name}"` : ''}</p>
-          {['top', 'heart', 'base'].map((t) => (
-            <p key={t} className="text-xs mt-1"><span className="uppercase tracking-wider text-surface-500 mr-1">{t}</span>{(f.pyramid?.[t] || []).map((n) => `${n.en} ${n.pct}%`).join(', ')}</p>
-          ))}
+          <p className="text-xs text-surface-500">{(f.accords || []).slice(0, 3).map((a) => a.en).join(', ')}{item.label_name ? ` · Name on the bottle: "${item.label_name}"` : ''}</p>
+          <p className="text-xs text-surface-500 mt-1">Open the result page to see the ritual and matches.</p>
         </div>
         <div className="text-xs space-y-0.5">
           {Object.entries(ANSWER_LABELS).map(([k, l]) => {
@@ -172,7 +172,7 @@ function Lead({ item, canUpdate, onChanged }) {
 
 function Leads({ canUpdate }) {
   const [data, setData] = useState({ items: [], total: 0, counts: {} });
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('all');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -192,14 +192,15 @@ function Leads({ canUpdate }) {
   const c = data.counts || {};
   const leads = (c.reserved || 0) + (c.contacted || 0) + (c.ordered || 0) + (c.gift_given || 0);
   const tabs = [
-    ['', `Leads (${leads})`], ['reserved', `New (${c.reserved || 0})`], ['contacted', 'Contacted'], ['ordered', 'Ordered'],
-    ['gift_given', 'Gift given'], ['all', `All creations (${leads + (c.created || 0)})`], ['archived', 'Archived'],
+    ['all', `All creations (${leads + (c.created || 0)})`], ['ordered', `Ordered (${c.ordered || 0})`], ['gift_given', 'Gift given'],
+    ...(c.reserved || c.contacted ? [['', `Old reservations (${(c.reserved || 0) + (c.contacted || 0)})`]] : []),
+    ['archived', 'Archived'],
   ];
 
   return (
     <div className={cardCls}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 inline-flex items-center gap-2"><HiOutlineSparkles className="w-4 h-4" /> Creations &amp; leads</h3>
+        <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-100 inline-flex items-center gap-2"><HiOutlineSparkles className="w-4 h-4" /> Creations</h3>
         <label className="relative">
           <HiOutlineSearch className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
           <input className={`${inputCls} pl-8 py-1.5 w-56`} placeholder="Code, name or phone" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -211,7 +212,7 @@ function Leads({ canUpdate }) {
             className={`px-3 py-1 rounded-lg text-xs border ${status === k ? 'bg-primary-600 text-white border-primary-600' : 'border-surface-300 dark:border-surface-700 text-surface-600 dark:text-surface-300'}`}>{label}</button>
         ))}
       </div>
-      <p className="text-[11px] text-surface-500 mb-2">"All creations" also lists formulas people composed but did not reserve (no contact details).</p>
+      <p className="text-[11px] text-surface-500 mb-2">Every result people created. A creation turns "Ordered" by itself when its whole ritual is ordered, and the order number is added to its note.</p>
       {loading ? <p className="text-sm text-surface-500">Loading…</p> : data.items.length === 0 ? (
         <p className="text-sm text-surface-500">Nothing here yet.</p>
       ) : (

@@ -566,6 +566,7 @@ class StoreService {
       payment_method,
       notes = '',
       items = [],
+      atelier_code,
     } = orderData;
 
     // 1. Resolve country
@@ -710,9 +711,28 @@ class StoreService {
       } catch { /* keep defaults */ }
       const shippingFee = subtotal >= SHIPPING_FREE_OVER ? 0.000 : DEFAULT_SHIPPING_FEE;
 
+      // Crown Ritual (Atelier): when every product of the ritual is in the order, take its discount
+      // off one unit of each, and note the complimentary samples for the team. Re-derived here, never trusted from the browser.
+      let discountAmount = 0;
+      let ritualNote = '';
+      let ritualCode = null;
+      if (atelier_code) {
+        try {
+          const r = await require('./atelier.service').ritualForOrder(atelier_code);
+          if (r && r.ids.every((id) => verifiedItems.some((i) => i.product_id === id))) {
+            const unit = (id) => Math.max(...verifiedItems.filter((i) => i.product_id === id).map((i) => i.unit_price));
+            discountAmount = parseFloat(((r.ids.reduce((sum, id) => sum + unit(id), 0) * r.discount) / 100).toFixed(2));
+            ritualCode = r.code;
+            ritualNote = `[Atelier ritual ${r.code}${r.discount ? `, ${r.discount}% off` : ''}: add the complimentary 2ml samples]`;
+          }
+        } catch { /* a ritual problem never blocks an order */ }
+      }
+
       const taxPercentage = parseFloat(country.tax_percentage) || 5.00;
-      const taxAmount = parseFloat(((subtotal * taxPercentage) / 100).toFixed(3));
-      const totalAmount = parseFloat((subtotal + taxAmount + shippingFee).toFixed(3));
+      const taxableBase = Math.max(0, subtotal - discountAmount);
+      const taxAmount = parseFloat(((taxableBase * taxPercentage) / 100).toFixed(3));
+      const totalAmount = parseFloat((taxableBase + taxAmount + shippingFee).toFixed(3));
+      const orderNotes = [ritualNote, notes ? notes.trim() : ''].filter(Boolean).join(' ') || null;
 
       // 6. Payment method and status
       const chosenPayment = (payment_method || payment || 'cod').toLowerCase();
@@ -761,7 +781,7 @@ class StoreService {
           shippingFee,
           taxPercentage,
           taxAmount,
-          0.000, // discount_amount
+          discountAmount,
           totalAmount,
           initialPaymentStatus,
           normalizedPaymentMethod,
@@ -770,7 +790,7 @@ class StoreService {
           initialOrderStatus,
           JSON.stringify(formattedAddress),
           JSON.stringify(formattedAddress),
-          notes ? notes.trim() : null,
+          orderNotes,
         ]
       );
 
@@ -821,6 +841,14 @@ class StoreService {
       // 10. Commit transaction
       await conn.commit();
 
+      if (ritualCode) {
+        // Mark the creation as ordered (the Atelier list in admin shows which order it became)
+        db.query(
+          "UPDATE atelier_creations SET status = 'ordered', admin_note = CONCAT_WS(' · ', NULLIF(admin_note, ''), ?) WHERE code = ? AND status IN ('created', 'reserved', 'contacted')",
+          [`Order ${orderNumber}`, ritualCode]
+        ).catch(() => {});
+      }
+
       // Log storefront audit event
       await loggerService.logAction({
         source: 'storefront',
@@ -851,6 +879,7 @@ class StoreService {
         currency_symbol: country.currency_symbol,
         subtotal,
         shipping_fee: shippingFee,
+        discount_amount: discountAmount,
         tax_amount: taxAmount,
         total_amount: totalAmount,
         customer: {
