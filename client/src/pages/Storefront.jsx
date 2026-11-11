@@ -15,7 +15,6 @@ import {
   HiOutlinePhotograph,
   HiOutlineDocumentText,
   HiOutlineSparkles,
-  HiOutlineGift,
 } from 'react-icons/hi';
 import HeroSliderManager from '../components/storefront/HeroSliderManager';
 import HouseDisciplinesManager from '../components/storefront/HouseDisciplinesManager';
@@ -23,7 +22,6 @@ import PagesManager from '../components/storefront/PagesManager';
 import JournalManager from '../components/storefront/JournalManager';
 import ContactManager from '../components/storefront/ContactManager';
 import AtelierManager from '../components/storefront/AtelierManager';
-import GiftsManager from '../components/storefront/GiftsManager';
 import FaqManager from '../components/storefront/FaqManager';
 import { STOREFRONT_PAGES } from '../config/storefrontPages';
 
@@ -259,7 +257,6 @@ const SECTIONS = [
   { id: 'disciplines', label: 'House Disciplines', icon: HiOutlineTemplate, component: HouseDisciplinesManager },
   { id: 'journal', label: 'Journal', icon: HiOutlineDocumentText, component: JournalManager },
   { id: 'contact', label: 'Contact', icon: HiOutlineSpeakerphone, component: ContactManager },
-  { id: 'gifts', label: 'Gifts', icon: HiOutlineGift, component: GiftsManager },
   { id: 'atelier', label: 'Atelier', icon: HiOutlineSparkles, component: AtelierManager },
   { id: 'faq', label: 'Product FAQ', icon: HiOutlineSpeakerphone, component: FaqManager },
   { id: 'pages', label: 'Pages', icon: HiOutlineDocumentText, component: PagesManager },
