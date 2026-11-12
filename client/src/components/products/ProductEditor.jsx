@@ -41,7 +41,8 @@ const SPEC_PRESETS = [
   { key: 'season', label: 'Season', defaultVal: 'All Season' },
   { key: 'occasion', label: 'Occasion', defaultVal: 'Evening / Signature' },
   { key: 'origin', label: 'Origin', defaultVal: 'United Arab Emirates' },
-  { key: 'character', label: 'Character sliders (Fresh-Warm, Bright-Dark, Soft-Bold, Airy-Deep: 0-100)', defaultVal: '50,50,50,50' },
+  { key: 'ask_house', label: 'Ask the house (English)', defaultVal: '' },
+  { key: 'ask_house_ar', label: 'Ask the house (Arabic)', defaultVal: '' },
   { key: 'wear', label: 'Wear it when (en|ar; separated by ;)', defaultVal: 'Evenings out|الأمسيات; Special occasions|المناسبات الخاصة; Cooler weather|الأجواء الباردة' },
 ];
 
