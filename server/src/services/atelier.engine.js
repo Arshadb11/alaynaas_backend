@@ -327,12 +327,12 @@ function compose(a, seed) {
 const NOTE_TAGS = [
   [/oud|agar/, { oud: 3, woody: 1, royal: 1 }],
   [/rose/, { rose: 3, floral: 2 }],
-  [/jasmin|tuberose|ylang|orange blossom|neroli|gardenia|frangipani|hyacinth/, { white: 2, floral: 3 }],
+  [/jasmin|tuberose|ylang|orange blossom|neroli|gardenia|frangipani|hyacinth|osmanthus/, { white: 2, floral: 3 }],
   [/iris|orris|violet|heliotrope|powder/, { powdery: 3, floral: 1 }],
   [/peony|lily|floral|flower|immortelle|magnolia|lotus/, { floral: 3 }],
   [/saffron/, { spicy: 2, royal: 3 }],
   [/amber|labdanum|ambrox|resin/, { amber: 3 }],
-  [/vanill|tonka|benzoin|caramel|praline|honey/, { vanilla: 2, sweet: 3 }],
+  [/vanill|tonka|benzoin|caramel|praline|honey|sugar|rum/, { vanilla: 2, sweet: 3 }],
   [/musk/, { musk: 3 }],
   [/sandal|cedar|vetiver|patchouli|guaiac|cashmere|wood/, { woody: 3 }],
   [/leather|suede/, { leather: 3 }],
@@ -342,7 +342,7 @@ const NOTE_TAGS = [
   [/pepper|cardamom|cinnamon|clove|nutmeg|ginger|spic/, { spicy: 3 }],
   [/mint|lavender|basil|sage|rosemary|tea|herb/, { herbal: 3, fresh: 1 }],
   [/sea|marine|aqua|salt|ozon/, { aquatic: 3, fresh: 2 }],
-  [/apple|pear|berry|plum|peach|fig|fruit|pineapple|cherry|currant|apricot/, { fruity: 3 }],
+  [/apple|pear|berry|plum|peach|fig|fruit|pineapple|cherry|currant|apricot|davana|osmanthus/, { fruity: 3 }],
   [/moss|green|galbanum|leaf|grass/, { green: 3 }],
   [/aldehyde/, { fresh: 1, powdery: 1 }],
 ];
